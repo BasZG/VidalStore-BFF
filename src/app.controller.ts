@@ -8,10 +8,10 @@ import {
   Post,
   Put,
   Res,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import type { Response } from 'express';
-import { ProxyService } from './proxy/proxy.service.js';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import type { Response } from "express";
+import { ProxyService } from "./proxy/proxy.service.js";
 
 @Controller()
 export class AppController {
@@ -23,39 +23,38 @@ export class AppController {
     private readonly configService: ConfigService,
   ) {
     this.catalogoUrl =
-      this.configService.get<string>('CATALOGO_URL') ??
-      'http://localhost:3000';
+      this.configService.get<string>("CATALOGO_URL") ?? "http://localhost:3000";
 
     this.bibliotecaUrl =
-      this.configService.get<string>('BIBLIOTECA_URL') ??
-      'http://localhost:3003';
+      this.configService.get<string>("BIBLIOTECA_URL") ??
+      "http://localhost:3003";
   }
 
-  @Get('v1/catalogo')
+  @Get("v1/catalogo")
   async obtenerCatalogo(
-    @Headers('authorization') authorization: string | undefined,
+    @Headers("authorization") authorization: string | undefined,
     @Res() res: Response,
   ) {
     return this.responder(
       res,
       await this.proxyService.forward(
-        'GET',
+        "GET",
         `${this.catalogoUrl}/v1/catalogo`,
         authorization,
       ),
     );
   }
 
-  @Post('v1/catalogo')
+  @Post("v1/catalogo")
   async crearJuego(
-    @Headers('authorization') authorization: string | undefined,
+    @Headers("authorization") authorization: string | undefined,
     @Body() body: unknown,
     @Res() res: Response,
   ) {
     return this.responder(
       res,
       await this.proxyService.forward(
-        'POST',
+        "POST",
         `${this.catalogoUrl}/v1/catalogo`,
         authorization,
         body,
@@ -63,34 +62,34 @@ export class AppController {
     );
   }
 
-  @Put('v1/catalogo/:juegoId')
+  @Put("v1/catalogo/:juegoId")
   async actualizarJuego(
-    @Param('juegoId') juegoId: string,
-    @Headers('authorization') authorization: string | undefined,
+    @Param("juegoId") juegoId: string,
+    @Headers("authorization") authorization: string | undefined,
     @Body() body: unknown,
     @Res() res: Response,
   ) {
     return this.responder(
       res,
       await this.proxyService.forward(
-        'PUT',
-        `${this.catalogoUrl}/v1/catalogo/${juegoId}`,
+        "PUT",
+        `${this.catalogoUrl}/v1/catalogo/${encodeURIComponent(juegoId)}`,
         authorization,
         body,
       ),
     );
   }
 
-  @Post('v1/compras')
+  @Post("v1/compras")
   async crearCompra(
-    @Headers('authorization') authorization: string | undefined,
+    @Headers("authorization") authorization: string | undefined,
     @Body() body: unknown,
     @Res() res: Response,
   ) {
     return this.responder(
       res,
       await this.proxyService.forward(
-        'POST',
+        "POST",
         `${this.bibliotecaUrl}/v1/compras`,
         authorization,
         body,
@@ -98,47 +97,47 @@ export class AppController {
     );
   }
 
-  @Get('v1/biblioteca')
+  @Get("v1/biblioteca")
   async obtenerBiblioteca(
-    @Headers('authorization') authorization: string | undefined,
+    @Headers("authorization") authorization: string | undefined,
     @Res() res: Response,
   ) {
     return this.responder(
       res,
       await this.proxyService.forward(
-        'GET',
+        "GET",
         `${this.bibliotecaUrl}/v1/biblioteca`,
         authorization,
       ),
     );
   }
 
-  @Get('v1/licencias')
+  @Get("v1/licencias")
   async obtenerLicencias(
-    @Headers('authorization') authorization: string | undefined,
+    @Headers("authorization") authorization: string | undefined,
     @Res() res: Response,
   ) {
     return this.responder(
       res,
       await this.proxyService.forward(
-        'GET',
+        "GET",
         `${this.bibliotecaUrl}/v1/licencias`,
         authorization,
       ),
     );
   }
 
-  @Delete('v1/licencias/:licenciaId')
+  @Delete("v1/licencias/:licenciaId")
   async revocarLicencia(
-    @Param('licenciaId') licenciaId: string,
-    @Headers('authorization') authorization: string | undefined,
+    @Param("licenciaId") licenciaId: string,
+    @Headers("authorization") authorization: string | undefined,
     @Res() res: Response,
   ) {
     return this.responder(
       res,
       await this.proxyService.forward(
-        'DELETE',
-        `${this.bibliotecaUrl}/v1/licencias/${licenciaId}`,
+        "DELETE",
+        `${this.bibliotecaUrl}/v1/licencias/${encodeURIComponent(licenciaId)}`,
         authorization,
       ),
     );
