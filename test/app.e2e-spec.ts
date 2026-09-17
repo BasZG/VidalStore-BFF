@@ -11,6 +11,8 @@ import {
   it,
 } from 'vitest';
 import { AppModule } from './../src/app.module.js';
+import { RolesGuard } from './../src/auth/roles.guard.js';
+import { TokenGuard } from './../src/auth/token.guard.js';
 
 type Destino = {
   server: Server;
@@ -161,10 +163,19 @@ describe('BFF forwarding (e2e)', () => {
     process.env.BIBLIOTECA_URL =
       biblioteca.url;
 
+    const guardPermitido = {
+      canActivate: () => true,
+    };
+
     const moduleFixture: TestingModule =
       await Test.createTestingModule({
         imports: [AppModule],
-      }).compile();
+      })
+        .overrideGuard(TokenGuard)
+        .useValue(guardPermitido)
+        .overrideGuard(RolesGuard)
+        .useValue(guardPermitido)
+        .compile();
 
     app =
       moduleFixture.createNestApplication();

@@ -8,11 +8,16 @@ import {
   Post,
   Put,
   Res,
+  UseGuards,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Response } from "express";
+import { Roles } from "./auth/roles.decorator.js";
+import { RolesGuard } from "./auth/roles.guard.js";
+import { TokenGuard } from "./auth/token.guard.js";
 import { ProxyService } from "./proxy/proxy.service.js";
 
+@UseGuards(TokenGuard)
 @Controller()
 export class AppController {
   private readonly catalogoUrl: string;
@@ -46,6 +51,8 @@ export class AppController {
   }
 
   @Post("v1/catalogo")
+  @UseGuards(RolesGuard)
+  @Roles("editores", "administradores")
   async crearJuego(
     @Headers("authorization") authorization: string | undefined,
     @Body() body: unknown,
@@ -63,6 +70,8 @@ export class AppController {
   }
 
   @Put("v1/catalogo/:juegoId")
+  @UseGuards(RolesGuard)
+  @Roles("editores", "administradores")
   async actualizarJuego(
     @Param("juegoId") juegoId: string,
     @Headers("authorization") authorization: string | undefined,
@@ -113,6 +122,8 @@ export class AppController {
   }
 
   @Get("v1/licencias")
+  @UseGuards(RolesGuard)
+  @Roles("administradores")
   async obtenerLicencias(
     @Headers("authorization") authorization: string | undefined,
     @Res() res: Response,
@@ -128,6 +139,8 @@ export class AppController {
   }
 
   @Delete("v1/licencias/:licenciaId")
+  @UseGuards(RolesGuard)
+  @Roles("administradores")
   async revocarLicencia(
     @Param("licenciaId") licenciaId: string,
     @Headers("authorization") authorization: string | undefined,

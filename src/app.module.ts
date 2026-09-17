@@ -2,6 +2,8 @@ import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
+import { RolesGuard } from './auth/roles.guard.js';
+import { TokenGuard } from './auth/token.guard.js';
 import { ProxyService } from './proxy/proxy.service.js';
 
 @Module({
@@ -12,6 +14,6 @@ import { ProxyService } from './proxy/proxy.service.js';
     HttpModule,
   ],
   controllers: [AppController],
-  providers: [ProxyService],
+  providers: [ProxyService, TokenGuard, RolesGuard],
 })
 export class AppModule {}
