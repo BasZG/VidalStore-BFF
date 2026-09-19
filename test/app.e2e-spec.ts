@@ -1,16 +1,10 @@
-import type { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import request from 'supertest';
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  it,
-} from 'vitest';
-import { AppModule } from './../src/app.module.js';
+import type { INestApplication } from "@nestjs/common";
+import { Test, TestingModule } from "@nestjs/testing";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import request from "supertest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { AppModule } from "./../src/app.module.js";
 
 type Destino = {
   server: Server;
@@ -18,26 +12,19 @@ type Destino = {
 };
 
 async function leerBody(
-  req: Parameters<
-    Parameters<typeof createServer>[0]
-  >[0],
+  req: Parameters<Parameters<typeof createServer>[0]>[0],
 ): Promise<unknown> {
   const chunks: Buffer[] = [];
 
   for await (const chunk of req) {
-    chunks.push(
-      Buffer.isBuffer(chunk)
-        ? chunk
-        : Buffer.from(chunk),
-    );
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
 
   if (chunks.length === 0) {
     return undefined;
   }
 
-  const contenido =
-    Buffer.concat(chunks).toString('utf8');
+  const contenido = Buffer.concat(chunks).toString("utf8");
 
   if (!contenido) {
     return undefined;
@@ -50,22 +37,22 @@ async function leerBody(
   }
 }
 
-async function iniciarDestino(): Promise<Destino> {
+async function iniciarDestino(
+  nombre: "catalogo" | "biblioteca",
+): Promise<Destino> {
   const server = createServer(async (req, res) => {
-    const authorization =
-      req.headers.authorization;
+    const authorization = req.headers.authorization;
 
-    if (authorization === 'Bearer timeout') {
+    if (authorization === "Bearer timeout") {
       setTimeout(() => {
         if (!res.destroyed) {
           res.statusCode = 200;
-          res.setHeader(
-            'Content-Type',
-            'application/json',
-          );
+
+          res.setHeader("Content-Type", "application/json");
+
           res.end(
             JSON.stringify({
-              message: 'respuesta tardia',
+              message: "respuesta tardia",
             }),
           );
         }
@@ -74,68 +61,79 @@ async function iniciarDestino(): Promise<Destino> {
       return;
     }
 
-    if (
-      authorization === 'Bearer disconnect'
-    ) {
+    if (authorization === "Bearer disconnect") {
       req.socket.destroy();
       return;
     }
 
-    if (
-      authorization ===
-      'Bearer error-destino'
-    ) {
+    if (authorization === "Bearer error-destino") {
       res.statusCode = 422;
-      res.setHeader(
-        'Content-Type',
-        'application/json',
-      );
+
+      res.setHeader("Content-Type", "application/json");
+
       res.end(
         JSON.stringify({
           statusCode: 422,
-          message: 'Error del microservicio',
+          message: "Error del microservicio",
         }),
       );
+
       return;
     }
 
     const body = await leerBody(req);
 
-    res.statusCode =
-      req.method === 'POST' ? 201 : 200;
+    if (
+      nombre === "biblioteca" &&
+      req.method === "POST" &&
+      req.url === "/v1/compras" &&
+      typeof body === "object" &&
+      body !== null &&
+      "juegoId" in body &&
+      body.juegoId === "juego-duplicado"
+    ) {
+      res.statusCode = 409;
 
-    res.setHeader(
-      'Content-Type',
-      'application/json',
-    );
+      res.setHeader("Content-Type", "application/json");
+
+      res.end(
+        JSON.stringify({
+          statusCode: 409,
+          message: "LICENCIA_YA_EXISTE",
+        }),
+      );
+
+      return;
+    }
+
+    res.statusCode = req.method === "POST" ? 201 : 200;
+
+    res.setHeader("Content-Type", "application/json");
 
     res.end(
       JSON.stringify({
+        destino: nombre,
         method: req.method,
         url: req.url,
-        authorization:
-          authorization ?? null,
+        authorization: authorization ?? null,
         body: body ?? null,
       }),
     );
   });
 
   await new Promise<void>((resolve) => {
-    server.listen(0, '127.0.0.1', resolve);
+    server.listen(0, "127.0.0.1", resolve);
   });
 
-  const address =
-    server.address() as AddressInfo;
+  const address = server.address() as AddressInfo;
 
   return {
     server,
-    url: `http://127.0.0.1:${address.port}`,
+    url: `http://127.0.0.1:` + `${address.port}`,
   };
 }
 
-async function cerrarServidor(
-  server: Server,
-): Promise<void> {
+async function cerrarServidor(server: Server): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {
       if (error) {
@@ -148,26 +146,25 @@ async function cerrarServidor(
   });
 }
 
-describe('BFF forwarding (e2e)', () => {
+describe("BFF forwarding (e2e)", () => {
   let app: INestApplication;
   let catalogo: Destino;
   let biblioteca: Destino;
 
   beforeAll(async () => {
-    catalogo = await iniciarDestino();
-    biblioteca = await iniciarDestino();
+    catalogo = await iniciarDestino("catalogo");
+
+    biblioteca = await iniciarDestino("biblioteca");
 
     process.env.CATALOGO_URL = catalogo.url;
-    process.env.BIBLIOTECA_URL =
-      biblioteca.url;
 
-    const moduleFixture: TestingModule =
-      await Test.createTestingModule({
-        imports: [AppModule],
-      }).compile();
+    process.env.BIBLIOTECA_URL = biblioteca.url;
 
-    app =
-      moduleFixture.createNestApplication();
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
 
     await app.init();
   });
@@ -176,191 +173,163 @@ describe('BFF forwarding (e2e)', () => {
     await app.close();
 
     await cerrarServidor(catalogo.server);
-    await cerrarServidor(
-      biblioteca.server,
-    );
+
+    await cerrarServidor(biblioteca.server);
   });
 
-  it('GET /v1/catalogo reenvia metodo y path', async () => {
-    const response = await request(
-      app.getHttpServer(),
-    )
-      .get('/v1/catalogo')
-      .set(
-        'Authorization',
-        'Bearer token-prueba',
-      )
+  it("GET /v1/catalogo reenvia metodo y path", async () => {
+    const response = await request(app.getHttpServer())
+      .get("/v1/catalogo")
+      .set("Authorization", "Bearer token-prueba")
       .expect(200);
 
-    expect(response.body.method).toBe('GET');
-    expect(response.body.url).toBe(
-      '/v1/catalogo',
-    );
-    expect(
-      response.body.authorization,
-    ).toBe('Bearer token-prueba');
+    expect(response.body.destino).toBe("catalogo");
+
+    expect(response.body.method).toBe("GET");
+
+    expect(response.body.url).toBe("/v1/catalogo");
+
+    expect(response.body.authorization).toBe("Bearer token-prueba");
   });
 
-  it('POST /v1/catalogo reenvia metodo, path y body', async () => {
+  it("POST /v1/catalogo reenvia metodo, path y body", async () => {
     const body = {
-      titulo: 'Juego',
+      titulo: "Juego",
       precio: 12990,
     };
 
-    const response = await request(
-      app.getHttpServer(),
-    )
-      .post('/v1/catalogo')
-      .set(
-        'Authorization',
-        'Bearer token-prueba',
-      )
+    const response = await request(app.getHttpServer())
+      .post("/v1/catalogo")
+      .set("Authorization", "Bearer token-prueba")
       .send(body)
       .expect(201);
 
-    expect(response.body.method).toBe(
-      'POST',
-    );
-    expect(response.body.url).toBe(
-      '/v1/catalogo',
-    );
+    expect(response.body.destino).toBe("catalogo");
+
+    expect(response.body.method).toBe("POST");
+
+    expect(response.body.url).toBe("/v1/catalogo");
+
     expect(response.body.body).toEqual(body);
   });
 
-  it('PUT /v1/catalogo/:juegoId codifica identificador', async () => {
-    const response = await request(
-      app.getHttpServer(),
-    )
-      .put(
-        '/v1/catalogo/juego%2Fespecial',
-      )
+  it("PUT /v1/catalogo/:juegoId codifica identificador", async () => {
+    const response = await request(app.getHttpServer())
+      .put("/v1/catalogo/juego%2Fespecial")
       .send({
         precio: 14990,
       })
       .expect(200);
 
-    expect(response.body.method).toBe('PUT');
-    expect(response.body.url).toBe(
-      '/v1/catalogo/juego%2Fespecial',
-    );
+    expect(response.body.destino).toBe("catalogo");
+
+    expect(response.body.method).toBe("PUT");
+
+    expect(response.body.url).toBe("/v1/catalogo/juego%2Fespecial");
   });
 
-  it('POST /v1/compras reenvia al servicio biblioteca', async () => {
-    const response = await request(
-      app.getHttpServer(),
-    )
-      .post('/v1/compras')
+  it("POST /v1/compras reenvia al servicio biblioteca", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/v1/compras")
       .send({
-        juegoId: 'juego-1',
+        juegoId: "juego-1",
       })
       .expect(201);
 
-    expect(response.body.method).toBe(
-      'POST',
-    );
-    expect(response.body.url).toBe(
-      '/v1/compras',
-    );
+    expect(response.body.destino).toBe("biblioteca");
+
+    expect(response.body.method).toBe("POST");
+
+    expect(response.body.url).toBe("/v1/compras");
+
     expect(response.body.body).toEqual({
-      juegoId: 'juego-1',
+      juegoId: "juego-1",
     });
   });
 
-  it('GET /v1/biblioteca reenvia metodo y path', async () => {
-    const response = await request(
-      app.getHttpServer(),
-    )
-      .get('/v1/biblioteca')
+  it("GET /v1/biblioteca reenvia metodo y path", async () => {
+    const response = await request(app.getHttpServer())
+      .get("/v1/biblioteca")
       .expect(200);
 
-    expect(response.body.method).toBe('GET');
-    expect(response.body.url).toBe(
-      '/v1/biblioteca',
-    );
+    expect(response.body.destino).toBe("biblioteca");
+
+    expect(response.body.method).toBe("GET");
+
+    expect(response.body.url).toBe("/v1/biblioteca");
   });
 
-  it('GET /v1/licencias reenvia metodo y path', async () => {
-    const response = await request(
-      app.getHttpServer(),
-    )
-      .get('/v1/licencias')
+  it("GET /v1/licencias reenvia metodo y path", async () => {
+    const response = await request(app.getHttpServer())
+      .get("/v1/licencias")
       .expect(200);
 
-    expect(response.body.method).toBe('GET');
-    expect(response.body.url).toBe(
-      '/v1/licencias',
-    );
+    expect(response.body.destino).toBe("biblioteca");
+
+    expect(response.body.method).toBe("GET");
+
+    expect(response.body.url).toBe("/v1/licencias");
   });
 
-  it('DELETE /v1/licencias/:licenciaId codifica identificador', async () => {
-    const response = await request(
-      app.getHttpServer(),
-    )
-      .delete(
-        '/v1/licencias/licencia%2Fespecial',
-      )
+  it("DELETE /v1/licencias/:licenciaId codifica identificador", async () => {
+    const response = await request(app.getHttpServer())
+      .delete("/v1/licencias/licencia%2Fespecial")
       .expect(200);
 
-    expect(response.body.method).toBe(
-      'DELETE',
-    );
-    expect(response.body.url).toBe(
-      '/v1/licencias/licencia%2Fespecial',
-    );
+    expect(response.body.destino).toBe("biblioteca");
+
+    expect(response.body.method).toBe("DELETE");
+
+    expect(response.body.url).toBe("/v1/licencias/licencia%2Fespecial");
   });
 
-  it('conserva status y body HTTP del microservicio', async () => {
-    const response = await request(
-      app.getHttpServer(),
-    )
-      .get('/v1/catalogo')
-      .set(
-        'Authorization',
-        'Bearer error-destino',
-      )
+  it("conserva 409 LICENCIA_YA_EXISTE recibido desde biblioteca", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/v1/compras")
+      .send({
+        juegoId: "juego-duplicado",
+      })
+      .expect(409);
+
+    expect(response.body).toEqual({
+      statusCode: 409,
+      message: "LICENCIA_YA_EXISTE",
+    });
+  });
+
+  it("conserva status y body HTTP del microservicio", async () => {
+    const response = await request(app.getHttpServer())
+      .get("/v1/catalogo")
+      .set("Authorization", "Bearer error-destino")
       .expect(422);
 
     expect(response.body).toEqual({
       statusCode: 422,
-      message: 'Error del microservicio',
+      message: "Error del microservicio",
     });
   });
 
-  it(
-    'timeout del microservicio devuelve 504',
-    async () => {
-      const response = await request(
-        app.getHttpServer(),
-      )
-        .get('/v1/catalogo')
-        .set(
-          'Authorization',
-          'Bearer timeout',
-        )
-        .expect(504);
+  it("timeout del microservicio devuelve 504", async () => {
+    const response = await request(app.getHttpServer())
+      .get("/v1/catalogo")
+      .set("Authorization", "Bearer timeout")
+      .expect(504);
 
-      expect(response.body).toEqual({
-        statusCode: 504,
-        message: 'Gateway Timeout',
-      });
-    },
-    5000,
-  );
+    expect(response.body).toEqual({
+      statusCode: 504,
+      message: "Gateway Timeout",
+    });
+  }, 5000);
 
-  it('conexion interrumpida devuelve 502', async () => {
-    const response = await request(
-      app.getHttpServer(),
-    )
-      .get('/v1/catalogo')
-      .set(
-        'Authorization',
-        'Bearer disconnect',
-      )
+  it("conexion interrumpida devuelve 502", async () => {
+    const response = await request(app.getHttpServer())
+      .get("/v1/catalogo")
+      .set("Authorization", "Bearer disconnect")
       .expect(502);
 
     expect(response.body).toEqual({
       statusCode: 502,
-      message: 'Bad Gateway',
+      message: "Bad Gateway",
     });
   });
 });
